@@ -122,29 +122,26 @@ class Camera():
         img_msg.step = len(
             img_msg.data) // img_msg.height  # That double line is actually integer division, not a comment
         return img_msg
-   
+
     def circle_center(self):
         """圆形检测函数 - 不显示形态学窗口"""
         if self.frame is None:
             return None
-        
+
         image = self.frame()
         kernel = np.ones((8, 8), np.uint8)
-        
+
         # 优化后的颜色检测参数
         mask = cv2.inRange(image, np.array([104, 67, 0]), np.array([238, 89, 57]))
-        
+
         # 形态学处理
         closing1 = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
-        
+
         # 检测区域处理
         # 裁剪模式 (640×480)
         opening = closing1[156:277, 245:357]
         opening = cv2.resize(opening, (640, 640))
 
-        # 👇 注释掉这一行，不再显示形态学窗口
-        # cv2.imshow("th", opening)
-        
         # 中心点检测
         centers = []
         for i in range(191, 264):
@@ -154,10 +151,10 @@ class Camera():
             left = white[0]
             right = white[-1]
             centers.append((left + right) / 2)
-        
+
         if len(centers) == 0:
             return None
-        
+
         from collections import Counter
         midpoint_counts = Counter(centers)
         mode_midpoint = midpoint_counts.most_common(1)[0][0]
@@ -168,22 +165,22 @@ class Camera():
         """显示带圆形检测标记的摄像头画面（预览模式）"""
         if self.img is not None:
             img = self.img.copy()
-            
+
             # 1. 绘制AR码（红点）
             if self.pose is not None:
                 for i in self.pose:
                     cv2.circle(img, (int(i[0][0]), int(i[0][1])), 1, (0, 0, 255), 3)
                     # 添加AR码ID标签
                     cv2.putText(img, "AR", (int(i[0][0]) + 5, int(i[0][1]) - 5),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
-            
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+
             # 2. 绘制裁剪区域（绿框）- 根据circle_center的参数
             crop_x1, crop_y1 = 245, 156
             crop_x2, crop_y2 = 357, 277
             cv2.rectangle(img, (crop_x1, crop_y1), (crop_x2, crop_y2), (0, 255, 0), 2)
-            cv2.putText(img, "Detection Area", (crop_x1, crop_y1 - 5), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-            
+            cv2.putText(img, "Detection Area", (crop_x1, crop_y1 - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+
             # 3. 检测并绘制圆心
             center = self.circle_center()
             if center is not None:
@@ -192,57 +189,57 @@ class Camera():
                 crop_height = crop_y2 - crop_y1
                 real_x = int(crop_x1 + (center[0] / 640.0) * crop_width)
                 real_y = int(crop_y1 + (center[1] / 640.0) * crop_height)
-                
+
                 # 绘制圆心（黄色大圆）
                 cv2.circle(img, (real_x, real_y), 8, (0, 255, 255), 3)
                 cv2.circle(img, (real_x, real_y), 2, (0, 255, 255), -1)  # 中心点
-                cv2.putText(img, "Center: ({:.0f}, {:.0f})".format(center[0], center[1]), 
-                           (real_x + 15, real_y - 15), cv2.FONT_HERSHEY_SIMPLEX, 
-                           0.5, (0, 255, 255), 2)
-                
+                cv2.putText(img, "Center: ({:.0f}, {:.0f})".format(center[0], center[1]),
+                            (real_x + 15, real_y - 15), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5, (0, 255, 255), 2)
+
                 # 显示检测成功状态
-                cv2.putText(img, "Circle Detected!", (10, 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                
+                cv2.putText(img, "Circle Detected!", (10, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
                 # 计算并显示与目标的偏差
                 target_x = 350
                 error = abs(center[0] - target_x)
                 error_text = "Error: {:.1f}px".format(error)
                 error_color = (0, 255, 0) if error <= 7 else (0, 165, 255)
-                cv2.putText(img, error_text, (10, 60), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, error_color, 2)
+                cv2.putText(img, error_text, (10, 60),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, error_color, 2)
             else:
                 # 显示未检测到状态
-                cv2.putText(img, "No Circle Detected", (10, 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-            
+                cv2.putText(img, "No Circle Detected", (10, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
             # 4. 绘制目标线（蓝色竖线）- target_x=350的位置
             target_x = 350
             crop_width = crop_x2 - crop_x1
             target_real_x = int(crop_x1 + (target_x / 640.0) * crop_width)
             cv2.line(img, (target_real_x, crop_y1), (target_real_x, crop_y2), (255, 0, 0), 2)
-            cv2.putText(img, "Target", (target_real_x + 5, crop_y1 + 20), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
-            
+            cv2.putText(img, "Target", (target_real_x + 5, crop_y1 + 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
+
             # 5. 添加图例说明
             legend_y = img.shape[0] - 100
-            cv2.putText(img, "Legend:", (10, legend_y), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.putText(img, "Legend:", (10, legend_y),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
             cv2.circle(img, (20, legend_y + 20), 3, (0, 255, 0), 2)
-            cv2.putText(img, "Detection Area", (30, legend_y + 25), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+            cv2.putText(img, "Detection Area", (30, legend_y + 25),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             cv2.line(img, (15, legend_y + 40), (25, legend_y + 40), (255, 0, 0), 2)
-            cv2.putText(img, "Target Line", (30, legend_y + 45), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+            cv2.putText(img, "Target Line", (30, legend_y + 45),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             cv2.circle(img, (20, legend_y + 60), 3, (0, 255, 255), -1)
-            cv2.putText(img, "Circle Center", (30, legend_y + 65), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+            cv2.putText(img, "Circle Center", (30, legend_y + 65),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             cv2.circle(img, (20, legend_y + 80), 3, (0, 0, 255), -1)
-            cv2.putText(img, "AR Marker", (30, legend_y + 85), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-            
+            cv2.putText(img, "AR Marker", (30, legend_y + 85),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+
             cv2.imshow("Camera Preview", img)
-  
+
     def ar_marker_subscriber(self):
         def ar_marker_callback(msg):
             id = []
